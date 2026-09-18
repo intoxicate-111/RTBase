@@ -42,7 +42,11 @@ public:
 	// Add code here
 	Ray generateRay(float x, float y)
 	{
-		Vec3 dir(0, 0, 1);
+
+		Vec3 NDCIndex = Vec3(2 * x / this->width - 1, 1 - 2 * y / this->height, 0.5);
+		
+		Vec3 dir = camera.mulVec(inverseProjectionMatrix.mulPointAndPerspectiveDivide(NDCIndex)).normalize();
+		
 		return Ray(origin, dir);
 	}
 	bool projectOntoCamera(const Vec3& p, float& x, float& y)

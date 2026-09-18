@@ -63,8 +63,8 @@ public:
 		vertices[0] = v0;
 		vertices[1] = v1;
 		vertices[2] = v2;
-		e1 = vertices[2].p - vertices[1].p;
-		e2 = vertices[0].p - vertices[2].p;
+		e1 = vertices[1].p - vertices[0].p;
+		e2 = vertices[2].p - vertices[0].p;
 		n = e1.cross(e2).normalize();
 		area = e1.cross(e2).length() * 0.5f;
 		d = Dot(n, vertices[0].p);
@@ -76,6 +76,37 @@ public:
 	// Add code here
 	bool rayIntersect(const Ray& r, float& t, float& u, float& v) const
 	{
+		// from o + tD = A + uE1 + vE2 we have o - A = uE1 + vE2 - tD
+		// define o - A = S
+		Vec3 s = r.o - vertices[0].p; 
+		// we define a vector P orthogonal to E2, P = D x E2
+		Vec3 p = r.dir.cross(e2);
+		// S · P = uE1 · P + vE2 · P - tD · P = uE1 · P
+		// So we have u = S·P/E1·P
+		//define Δ = e1 · P  = e1 · (d x e2)
+		//note this is also equal to e2.dot(e1 x d) or d.dot(e2 x e1)
+		float del = e1.dot(p); 
+		if (std::abs(del) < EPSILON )
+			return false;
+		float invDel = 1 / del;
+		//find an expression whose denominator is the same scalar triple product Δ so we define a formulation 
+		Vec3 q = s.cross(e1);
+		//now we have Q = vE2 x e1 - t(D × e1)
+		//take the dot product of both sides with D we have Q · D = vD · (E2 x E1) - tD · (D x E1) = vD · (E2 x E1)
+		//now we have v = Q · D / D · (E2 x e1) =  Q · D / Δ
+		//for t, we have Q · E2  = -t · E2 (D x E1) = t · E2 (E1 x D) then t = Q · E2 / Δ
+		
+		
+		
+		u = s.dot(p) * invDel;
+		if (u < 0.0f || u > 1.0f)
+			return false;
+		v = q.dot(r.dir) * invDel;
+		if (v<0.0f || u+v > 1.0f)
+			return false;
+		t = q.dot(e2) * invDel;
+		if (t < EPSILON )
+			return false;
 		return true;
 	}
 	void interpolateAttributes(const float alpha, const float beta, const float gamma, Vec3& interpolatedNormal, float& interpolatedU, float& interpolatedV) const
