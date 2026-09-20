@@ -147,6 +147,20 @@
   <ItemGroup>
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="Scenes\cornell-box\0.14_0.45_0.091.png" />
+    <Content Include="Scenes\cornell-box\0.14_0.45_0.091_1.0.png" />
+    <Content Include="Scenes\cornell-box\0.63_0.065_0.05.png" />
+    <Content Include="Scenes\cornell-box\0.63_0.065_0.05_1.0.png" />
+    <Content Include="Scenes\cornell-box\0.725_0.71_0.68.png" />
+    <Content Include="Scenes\cornell-box\0.725_0.71_0.68_1.0.png" />
+    <Content Include="Scenes\cornell-box\0_0_0.png" />
+    <Content Include="Scenes\cornell-box\0_0_0_1.0.png" />
+    <Content Include="Scenes\cornell-box\1_1_1.png" />
+    <Content Include="Scenes\cornell-box\Cube.gem" />
+    <Content Include="Scenes\cornell-box\Rectangle.gem" />
+    <Content Include="Scenes\cornell-box\scene.json" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

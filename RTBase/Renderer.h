@@ -92,7 +92,7 @@ public:
 				float py = y + 0.5f;
 				Ray ray = scene->camera.generateRay(px, py);
 				Colour col = viewNormals(ray);
-				//Colour col = albedo(ray);
+				// Colour col = albedo(ray);
 				film->splat(px, py, col);
 				unsigned char r = (unsigned char)(col.r * 255);
 				unsigned char g = (unsigned char)(col.g * 255);

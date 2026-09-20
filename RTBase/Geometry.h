@@ -67,7 +67,7 @@ public:
 		e2 = vertices[2].p - vertices[0].p;
 		n = e1.cross(e2).normalize();
 		area = e1.cross(e2).length() * 0.5f;
-		d = Dot(n, vertices[0].p);
+		d = Dot(n, vertices[0].p); 
 	}
 	Vec3 centre() const
 	{
@@ -95,9 +95,6 @@ public:
 		//take the dot product of both sides with D we have Q · D = vD · (E2 x E1) - tD · (D x E1) = vD · (E2 x E1)
 		//now we have v = Q · D / D · (E2 x e1) =  Q · D / Δ
 		//for t, we have Q · E2  = -t · E2 (D x E1) = t · E2 (E1 x D) then t = Q · E2 / Δ
-		
-		
-		
 		u = s.dot(p) * invDel;
 		if (u < 0.0f || u > 1.0f)
 			return false;
@@ -149,12 +146,29 @@ public:
 	// Add code here
 	bool rayAABB(const Ray& r, float& t)
 	{
-		return true;
+		Vec3 far = Max((max - r.o) * r.invDir, (min - r.o) * r.invDir);
+		Vec3 near = Min((max - r.o) * r.invDir, (min - r.o) * r.invDir);
+		float entry = std::max({near.x, near.y, near.z});
+		float exit = std::min({far.x, far.y, far.z});
+		if (exit >= 0 && exit >= entry )
+		{
+			t = entry;
+			return true;
+		}
+			
+		return false;
 	}
 	// Add code here
 	bool rayAABB(const Ray& r)
 	{
-		return true;
+
+		Vec3 far = Max((max - r.o) * r.invDir, (min - r.o) * r.invDir);
+		Vec3 near = Min((max - r.o) * r.invDir, (min - r.o) * r.invDir);
+		float entry = std::max({near.x, near.y, near.z});
+		float exit = std::min({far.x, far.y, far.z});
+		if (exit >= 0 && exit >= entry )
+			return true;
+		return false;
 	}
 	// Add code here
 	float area()
@@ -203,21 +217,194 @@ public:
 	BVHNode* l;
 	// This can store an offset and number of triangles in a global triangle list for example
 	// But you can store this however you want!
-	// unsigned int offset;
-	// unsigned char num;
+	unsigned int offset;
+	unsigned char num;
 	BVHNode()
 	{
 		r = NULL;
 		l = NULL;
+		offset = 0;
+		num = 0;
+		bounds.reset();
 	}
 	// Note there are several options for how to implement the build method. Update this as required
-	void build(std::vector<Triangle>& inputTriangles)
+	void build(std::vector<Triangle>& inputTriangles, int offsetLeft, int offsetRight)
 	{
 		// Add BVH building code here
+		AABB centroidBounds;
+		bounds.reset();
+		for (int i=0; i< offsetRight - offsetLeft; ++i )
+		{
+			const Triangle& tmp = inputTriangles[i + offsetLeft];
+			bounds.extend(tmp.vertices[0].p);
+			bounds.extend(tmp.vertices[1].p);
+			bounds.extend(tmp.vertices[2].p);
+			centroidBounds.extend(tmp.centre());
+		}
+		offset = offsetLeft;
+		num = offsetRight - offsetLeft;
+		if (offsetRight - offsetLeft <= MAXNODE_TRIANGLES )
+				return;
+		int mid ;
+		
+		float bestCost = FLT_MAX;
+		int bestAxis = -1;
+		int bestBin = -1;
+		float parentArea = bounds.area();
+		
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			int binCount[BUILD_BINS] = {};
+			AABB binBounds[BUILD_BINS];
+
+			float axisStart = centroidBounds.min.coords[axis];
+			float axisEnd = centroidBounds.max.coords[axis];
+			if (axisEnd - axisStart < EPSILON)
+				continue;
+			float scale  =BUILD_BINS / ( axisEnd - axisStart )  ;
+			
+			for (int i=0; i<offsetRight - offsetLeft; ++i )
+			{ 
+				const Triangle& tmp = inputTriangles[i + offsetLeft];
+				int position;
+				position = std::min ( static_cast<int>((tmp.centre().coords[axis] - axisStart) * scale),BUILD_BINS - 1 );
+				binCount[ position ] ++;
+				binBounds[position].extend(tmp.vertices[0].p);
+				binBounds[position].extend(tmp.vertices[1].p);
+				binBounds[position].extend(tmp.vertices[2].p);
+			}
+			
+			AABB leftBounds[BUILD_BINS];
+			AABB rightBounds[BUILD_BINS];
+
+			int leftCount[BUILD_BINS] = {};
+			int rightCount[BUILD_BINS] = {};
+
+			AABB currentLeft;
+			int currentLeftCount = 0;
+
+			for (int i = 0; i < BUILD_BINS; ++i)
+			{
+				if (binCount[i] > 0)
+				{
+					currentLeft.extend(binBounds[i].min);
+					currentLeft.extend(binBounds[i].max);
+					currentLeftCount += binCount[i];
+				}
+
+				if (currentLeftCount > 0)
+					leftBounds[i] = currentLeft;
+
+				leftCount[i] = currentLeftCount;
+			}
+
+			AABB currentRight;
+			int currentRightCount = 0;
+
+			for (int i = BUILD_BINS - 1; i >= 0; --i)
+			{
+				if (binCount[i] > 0)
+				{
+					currentRight.extend(binBounds[i].min);
+					currentRight.extend(binBounds[i].max);
+					currentRightCount += binCount[i];
+				}
+
+				if (currentRightCount > 0)
+					rightBounds[i] = currentRight;
+
+				rightCount[i] = currentRightCount;
+			}
+			
+			for (int i = 0; i < BUILD_BINS-1; ++i)
+			{
+				float tmpCost;
+				if (leftCount[i] == 0 || rightCount[i+1] == 0)
+					continue;
+				
+				tmpCost = TRAVERSE_COST + 
+					TRIANGLE_COST * 
+						(leftBounds[i].area()/ parentArea * (float)leftCount[i] 
+							+ rightBounds[i+1].area()/ parentArea * (float)rightCount[i+1]);
+				if (tmpCost<bestCost)
+				{
+					bestCost = tmpCost;
+					bestAxis = axis;
+					bestBin = i;
+					// mid = offsetLeft + leftCount[i];
+				}
+			}
+			
+		}
+		
+		if (bestAxis == -1 || bestCost > (float)(offsetRight - offsetLeft) * TRIANGLE_COST)
+			return;
+		
+		float axisStart = centroidBounds.min.coords[bestAxis];
+		float axisEnd = centroidBounds.max.coords[bestAxis];
+		float scale  =BUILD_BINS / ( axisEnd - axisStart )  ;
+		
+		auto partitionIt = std::partition(inputTriangles.begin() + offsetLeft, inputTriangles.begin() + offsetRight
+			,[bestAxis,bestBin,axisStart,scale](const Triangle& t)
+				{
+					int position = static_cast<int>(
+						(t.centre().coords[bestAxis] - axisStart) * scale
+					);
+					position = std::min ( position,BUILD_BINS - 1 );
+					return position <= bestBin;
+				}
+			);
+		
+		mid = static_cast<int>(partitionIt - inputTriangles.begin());
+		
+		if (mid == offsetLeft || mid == offsetRight)
+		{
+			std::cout << "BVH degenerate partition: "
+					  << "left=" << offsetLeft
+					  << ", mid=" << mid
+					  << ", right=" << offsetRight
+					  << '\n';
+		}
+		
+		BVHNode* leftNode = new BVHNode();
+		BVHNode* rightNode = new BVHNode();		
+		
+		leftNode->build(inputTriangles, offsetLeft, mid);
+		rightNode->build(inputTriangles, mid, offsetRight);
+		l=leftNode;
+		r=rightNode;
+		
 	}
+	
 	void traverse(const Ray& ray, const std::vector<Triangle>& triangles, IntersectionData& intersection)
 	{
 		// Add BVH Traversal code here
+		if (!bounds.rayAABB(ray))
+			return;
+		if (l == nullptr && r == nullptr)
+		{
+			for (int i = 0; i < num; ++i)
+			{
+				float t;
+				float u;
+				float v;
+				if (triangles[offset+i].rayIntersect(ray, t, u, v) && t < intersection.t)
+				{
+					intersection.t = t;
+					intersection.ID = offset+i;
+					intersection.alpha = 1.0f - u - v;
+					intersection.beta = u;
+					intersection.gamma = v;
+				}
+			}
+			return;
+		}
+		
+		if (l != nullptr)
+			l->traverse(ray, triangles, intersection);
+
+		if (r != nullptr)
+			r->traverse(ray, triangles, intersection);
 	}
 	IntersectionData traverse(const Ray& ray, const std::vector<Triangle>& triangles)
 	{
