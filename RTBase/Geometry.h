@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iso646.h>
+
 #include "Core.h"
 #include "Sampling.h"
 
@@ -379,13 +381,15 @@ public:
 	void traverse(const Ray& ray, const std::vector<Triangle>& triangles, IntersectionData& intersection)
 	{
 		// Add BVH Traversal code here
-		if (!bounds.rayAABB(ray))
+		float t;
+		if (!bounds.rayAABB(ray,t) ||  t >= intersection.t )
 			return;
-		if (l == nullptr && r == nullptr)
+		
+		if (l == nullptr && r == nullptr )
 		{
 			for (int i = 0; i < num; ++i)
 			{
-				float t;
+				
 				float u;
 				float v;
 				if (triangles[offset+i].rayIntersect(ray, t, u, v) && t < intersection.t)
@@ -400,11 +404,34 @@ public:
 			return;
 		}
 		
-		if (l != nullptr)
-			l->traverse(ray, triangles, intersection);
-
-		if (r != nullptr)
-			r->traverse(ray, triangles, intersection);
+		if (l != nullptr && r != nullptr)
+		{
+			float lt,rt;
+			bool lflag = l->bounds.rayAABB(ray,lt);
+			bool rflag = r->bounds.rayAABB(ray,rt);
+			
+			if (!lflag && !rflag)
+				return;
+			
+			if (!lflag)
+			{
+				r->traverse(ray, triangles, intersection);
+				return;
+			}
+			if (!rflag){
+				l->traverse(ray, triangles, intersection);
+				return;
+			}
+			
+			BVHNode* near = l;
+			BVHNode* far = r;
+			
+			if (rt < lt) std::swap(near,far);
+			near->traverse(ray, triangles, intersection);
+			far->traverse(ray, triangles, intersection);
+				
+		}
+			
 	}
 	IntersectionData traverse(const Ray& ray, const std::vector<Triangle>& triangles)
 	{
@@ -416,6 +443,31 @@ public:
 	bool traverseVisible(const Ray& ray, const std::vector<Triangle>& triangles, const float maxT)
 	{
 		// Add visibility code here
+		float t,u,v;
+		if (bounds.rayAABB(ray,t) && t < maxT)
+		{
+			
+			if (r==nullptr && l==nullptr)
+			{
+				for (int i = 0; i < num; ++i)
+				{
+					if (triangles[offset+i].rayIntersect(ray,t,u,v) && t < maxT)
+						return false;
+				}
+			}
+			else if (l==nullptr )
+			{
+				return r->traverseVisible(ray,triangles,maxT);
+			}
+			else if (r==nullptr )
+			{
+				return l->traverseVisible(ray,triangles,maxT);
+			}
+			else
+			{
+				return r->traverseVisible(ray,triangles,maxT) && l->traverseVisible(ray,triangles,maxT);
+			}
+		}
 		return true;
 	}
 };
